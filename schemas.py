@@ -1,4 +1,3 @@
-# qquest-backend\schemas.py
 from pydantic import BaseModel
 from typing import List
 
@@ -12,7 +11,7 @@ class QuestionCreate(BaseModel):
     choices: List[ChoiceCreate]
 
 class UploadRequest(BaseModel):
-    exam_name: str
+    exam_code: str
     year: int
     round: int
     questions: List[QuestionCreate]
