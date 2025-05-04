@@ -13,3 +13,4 @@ class User(Base):
     provider_id = Column(String(100), nullable=False)  # 구글 id 토큰 등의 고유값
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    is_admin = Column(Boolean, default=False)

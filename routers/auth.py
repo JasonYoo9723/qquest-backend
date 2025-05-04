@@ -19,7 +19,8 @@ def get_profile(current_user=Depends(get_current_user)):
     return {
         "id": current_user.id,
         "email": current_user.email,
-        "name": current_user.name
+        "name": current_user.name,
+        "is_admin": current_user.is_admin,
     }
 
 @router.post("/auth/google-login")

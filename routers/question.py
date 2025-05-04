@@ -1,11 +1,14 @@
 ### 📄 파일: routers/question.py
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import func
 from database import get_db
 from models.exam_model import Exam, ExamRound, RoundSubject, Subject, Question, Choice
 from schemas.question_schema import UploadRequest
+from schemas.question_schema import SubjectResponse
+from typing import List
+from pydantic import BaseModel
 
 router = APIRouter()
 
@@ -148,3 +151,14 @@ def save_questions(payload: UploadRequest, db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"서버 오류: {str(e)}")
+
+class ExamInfoResponse(BaseModel):
+    exam_code: str
+    exam_name: str
+
+@router.get("/exams/info", response_model=ExamInfoResponse)
+def get_exam_info(exam_code: str, db: Session = Depends(get_db)):
+    exam = db.query(Exam).filter_by(exam_code=exam_code).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="해당 시험 코드가 존재하지 않습니다.")
+    return ExamInfoResponse(exam_code=exam.exam_code, exam_name=exam.exam_name)
