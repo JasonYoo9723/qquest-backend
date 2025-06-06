@@ -1,16 +1,15 @@
-### 📄 파일: routers/question.py
-
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import func
 from database import get_db
-from models.exam_model import Exam, ExamRound, RoundSubject, Subject, Question, Choice
+from models.exam_model import Exam, ExamRound, RoundSubject, Subject, Question, Choice, Answer
 from schemas.question_schema import UploadRequest
 from schemas.question_schema import SubjectResponse
 from typing import List
 from pydantic import BaseModel
 
 router = APIRouter()
+
 
 @router.get("/exams")
 def get_exams(db: Session = Depends(get_db)):
@@ -65,6 +64,9 @@ def get_random_question(
     if not question:
         raise HTTPException(status_code=404, detail="문제가 없습니다.")
 
+    answer_row = db.query(Answer).filter_by(question_id=question.id).first()
+    answer_number = answer_row.choice_number if answer_row else None
+
     return {
         "id": question.id,
         "question_no": question.question_no,
@@ -79,7 +81,7 @@ def get_random_question(
                 "content": c.choice_content
             } for c in sorted(question.choices, key=lambda x: x.choice_number)
         ],
-        "answer": question.question_answer
+        "answer": answer_number
     }
 
 
@@ -152,9 +154,11 @@ def save_questions(payload: UploadRequest, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=f"서버 오류: {str(e)}")
 
+
 class ExamInfoResponse(BaseModel):
     exam_code: str
     exam_name: str
+
 
 @router.get("/exams/info", response_model=ExamInfoResponse)
 def get_exam_info(exam_code: str, db: Session = Depends(get_db)):

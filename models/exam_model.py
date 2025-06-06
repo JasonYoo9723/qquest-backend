@@ -56,17 +56,16 @@ class RoundSubject(Base):
 
 # ✅ 5. 문제 테이블
 class Question(Base):
-    __tablename__ = 't_questions'
-
-    id = Column(Integer, primary_key=True)
-    round_subject_id = Column(Integer, ForeignKey('t_round_subjects.id'), nullable=False)
+    __tablename__ = "t_questions"
+    id = Column(Integer, primary_key=True, index=True)
+    round_subject_id = Column(Integer, ForeignKey("t_round_subjects.id", ondelete="CASCADE"), nullable=False)
     question_no = Column(Integer, nullable=False)
-    question_text = Column(Text, nullable=False)
-    question_answer = Column(String(10))  # nullable=True가 기본입니다.
-    created_at = Column(DateTime, default=datetime.utcnow)
+    question_text = Column(String, nullable=False)
 
-    round_subject = relationship('RoundSubject', back_populates='questions')
-    choices = relationship('Choice', back_populates='question', cascade='all, delete-orphan')
+    round_subject = relationship("RoundSubject", back_populates="questions")
+    choices = relationship("Choice", back_populates="question", cascade="all, delete-orphan")
+    answer = relationship("Answer", uselist=False, back_populates="question", cascade="all, delete")
+
 
 
 # ✅ 6. 보기 테이블
@@ -79,4 +78,23 @@ class Choice(Base):
     choice_content = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    question = relationship('Question', back_populates='choices')
+    question = relationship("Question", back_populates="choices")
+
+
+class Answer(Base):
+    __tablename__ = 't_answers'
+    id = Column(Integer, primary_key=True, index=True)
+    question_id = Column(Integer, ForeignKey("t_questions.id", ondelete="CASCADE"), nullable=False)
+    choice_number = Column(Integer, nullable=False)
+
+    question = relationship("Question", back_populates="answer")
+
+class WrongNote(Base):
+    __tablename__ = 't_wrong_notes'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(String(100), nullable=False)  # Google user ID
+    question_id = Column(Integer, ForeignKey('t_questions.id', ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    question = relationship("Question")

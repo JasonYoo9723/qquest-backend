@@ -1,14 +1,17 @@
 # main.py
+import os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 import sys
-from routers import question, auth, user
+from routers import question, auth, user, admin_answers, admin_modify, wrong_notes
 from database import engine, Base
+from dotenv import load_dotenv
 
 # DB 모델 테이블 생성 (자동)
 Base.metadata.create_all(bind=engine)
+load_dotenv()
 
 app = FastAPI()
 
@@ -36,3 +39,17 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 app.include_router(question.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(user.router, prefix="/api")
+app.include_router(admin_answers.router, prefix="/api")
+app.include_router(admin_modify.router, prefix="/api", tags=["AdminModify"])
+app.include_router(wrong_notes.router, prefix="/api")
+
+origins = os.getenv("ALLOWED_ORIGINS", "")
+allowed_origins = [origin.strip() for origin in origins.split(",") if origin.strip()]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,  # ✅ 환경변수 기반 설정
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
