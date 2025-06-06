@@ -1,3 +1,4 @@
+# routers\question.py
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import func
@@ -10,7 +11,6 @@ from pydantic import BaseModel
 
 router = APIRouter()
 
-
 @router.get("/exams")
 def get_exams(db: Session = Depends(get_db)):
     exams = db.query(Exam.exam_code, Exam.exam_name).distinct().all()
@@ -18,21 +18,54 @@ def get_exams(db: Session = Depends(get_db)):
 
 
 @router.get("/exam-metadata")
-def get_exam_metadata(exam_code: str, db: Session = Depends(get_db)):
+def get_exam_metadata(
+    exam_code: str,
+    session: int = 1,  # ← 기본값 1로 설정
+    db: Session = Depends(get_db)
+):
     exam = db.query(Exam).filter(Exam.exam_code == exam_code).first()
     if not exam:
         raise HTTPException(status_code=404, detail="시험 정보 없음")
 
+    # 해당 교시 포함하여 필터링
     rounds = db.query(ExamRound).filter(ExamRound.exam_id == exam.id).all()
     years = sorted({r.year for r in rounds}, reverse=True)
 
-    subject_ids = db.query(RoundSubject.subject_id).join(ExamRound).filter(ExamRound.exam_id == exam.id).distinct()
-    subjects = db.query(Subject.subject_code, Subject.subject_name).filter(Subject.id.in_(subject_ids)).all()
+    subject_ids = (
+        db.query(RoundSubject.subject_id)
+        .join(ExamRound)
+        .filter(ExamRound.exam_id == exam.id)
+        .filter(RoundSubject.session == session)
+        .distinct()
+    )
+
+    subjects = (
+        db.query(Subject.subject_code, Subject.subject_name, RoundSubject.session)
+        .join(RoundSubject, RoundSubject.subject_id == Subject.id)
+        .join(ExamRound, RoundSubject.exam_round_id == ExamRound.id)
+        .filter(ExamRound.exam_id == exam.id)
+        .distinct()
+        .all()
+    )
+
+    session_rows = (
+        db.query(RoundSubject.session)
+        .join(ExamRound)
+        .filter(ExamRound.exam_id == exam.id)
+        .filter(RoundSubject.session.isnot(None))
+        .distinct()
+        .order_by(RoundSubject.session)
+        .all()
+    )
+    sessions = [str(row.session) for row in session_rows]
+
+    print(f"sessions:{sessions}")
 
     return {
         "years": years,
+        "sessions": sessions,
         "subjects": [
-            {"subject_code": s.subject_code, "subject_name": s.subject_name} for s in subjects
+            {"subject_code": s.subject_code, "subject_name": s.subject_name, "session": str(s.session)} for s in subjects
         ]
     }
 
@@ -46,6 +79,7 @@ def get_random_question(
     question_no: int = 1,
     db: Session = Depends(get_db)
 ):
+    print(f"sucject:{subject}")
     query = db.query(Question).join(RoundSubject).join(ExamRound).join(Exam).join(Subject)
 
     if exam_code:
@@ -55,6 +89,7 @@ def get_random_question(
     if subject:
         query = query.filter(Subject.subject_code == subject)
 
+    
     if mode == "RAN":
         query = query.order_by(func.random())
     else:
@@ -120,13 +155,14 @@ def save_questions(payload: UploadRequest, db: Session = Depends(get_db)):
 
             round_subject = (
                 db.query(RoundSubject)
-                .filter_by(exam_round_id=exam_round.id, subject_id=subject.id)
+                .filter_by(exam_round_id=exam_round.id, subject_id=subject.id, session=payload.session)
                 .first()
             )
             if not round_subject:
                 round_subject = RoundSubject(
                     exam_round_id=exam_round.id,
-                    subject_id=subject.id
+                    subject_id=subject.id,
+                    session=payload.session
                 )
                 db.add(round_subject)
                 db.flush()

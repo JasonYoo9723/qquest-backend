@@ -52,6 +52,7 @@ class RoundSubject(Base):
     exam_round = relationship('ExamRound', back_populates='subject_links')
     subject = relationship('Subject')
     questions = relationship('Question', back_populates='round_subject')
+    session = Column(Integer, nullable=False, default=1) 
 
 
 # ✅ 5. 문제 테이블
@@ -61,10 +62,12 @@ class Question(Base):
     round_subject_id = Column(Integer, ForeignKey("t_round_subjects.id", ondelete="CASCADE"), nullable=False)
     question_no = Column(Integer, nullable=False)
     question_text = Column(String, nullable=False)
+    question_answer = Column(String)
 
     round_subject = relationship("RoundSubject", back_populates="questions")
     choices = relationship("Choice", back_populates="question", cascade="all, delete-orphan")
     answer = relationship("Answer", uselist=False, back_populates="question", cascade="all, delete")
+    
 
 
 

@@ -11,7 +11,7 @@ class QuestionItem(BaseModel):
     subject_code: str
     question_no: int
     question_text: str
-    question_answer: int
+    question_answer: int | None = None
     choices: List[ChoiceItem]
 
 
@@ -19,6 +19,7 @@ class UploadRequest(BaseModel):
     exam_code: str
     year: int
     round: int
+    session: int
     questions: List[QuestionItem]
 
 
