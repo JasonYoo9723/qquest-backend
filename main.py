@@ -8,10 +8,11 @@ import sys
 from routers import question, auth, user, admin_answers, admin_modify, wrong_notes
 from database import engine, Base
 from dotenv import load_dotenv
+load_dotenv()
 
 # DB 모델 테이블 생성 (자동)
 Base.metadata.create_all(bind=engine)
-load_dotenv()
+
 
 app = FastAPI()
 
