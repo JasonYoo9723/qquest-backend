@@ -1,4 +1,3 @@
-# routers\question.py
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import func
@@ -20,33 +19,15 @@ def get_exams(db: Session = Depends(get_db)):
 @router.get("/exam-metadata")
 def get_exam_metadata(
     exam_code: str,
-    session: int = 1,  # ← 기본값 1로 설정
+    session: int = 1,
     db: Session = Depends(get_db)
 ):
     exam = db.query(Exam).filter(Exam.exam_code == exam_code).first()
     if not exam:
         raise HTTPException(status_code=404, detail="시험 정보 없음")
 
-    # 해당 교시 포함하여 필터링
     rounds = db.query(ExamRound).filter(ExamRound.exam_id == exam.id).all()
     years = sorted({r.year for r in rounds}, reverse=True)
-
-    subject_ids = (
-        db.query(RoundSubject.subject_id)
-        .join(ExamRound)
-        .filter(ExamRound.exam_id == exam.id)
-        .filter(RoundSubject.session == session)
-        .distinct()
-    )
-
-    subjects = (
-        db.query(Subject.subject_code, Subject.subject_name, RoundSubject.session)
-        .join(RoundSubject, RoundSubject.subject_id == Subject.id)
-        .join(ExamRound, RoundSubject.exam_round_id == ExamRound.id)
-        .filter(ExamRound.exam_id == exam.id)
-        .distinct()
-        .all()
-    )
 
     session_rows = (
         db.query(RoundSubject.session)
@@ -59,41 +40,66 @@ def get_exam_metadata(
     )
     sessions = [str(row.session) for row in session_rows]
 
-    print(f"sessions:{sessions}")
+    # 과목 + 시작문제번호
+    subject_rows = (
+        db.query(
+            Subject.subject_code,
+            Subject.subject_name,
+            RoundSubject.session,
+            func.min(Question.question_no).label("start_no")
+        )
+        .join(RoundSubject, RoundSubject.subject_id == Subject.id)
+        .join(ExamRound, RoundSubject.exam_round_id == ExamRound.id)
+        .join(Question, Question.round_subject_id == RoundSubject.id)
+        .filter(ExamRound.exam_id == exam.id)
+        .group_by(Subject.subject_code, Subject.subject_name, RoundSubject.session)
+        .all()
+    )
+
+    subjects = [
+        {
+            "subject_code": s.subject_code,
+            "subject_name": s.subject_name,
+            "session": str(s.session),
+            "start_no": s.start_no
+        } for s in subject_rows
+    ]
 
     return {
         "years": years,
         "sessions": sessions,
-        "subjects": [
-            {"subject_code": s.subject_code, "subject_name": s.subject_name, "session": str(s.session)} for s in subjects
-        ]
+        "subjects": subjects
     }
-
 
 @router.get("/learn/random-question")
 def get_random_question(
+
     exam_code: str = "",
     year: int = 0,
+    round: int = 0,
+    session: int = 0,
     subject: str = "",
     mode: str = "RAN",
     question_no: int = 1,
     db: Session = Depends(get_db)
 ):
-    print(f"sucject:{subject}")
     query = db.query(Question).join(RoundSubject).join(ExamRound).join(Exam).join(Subject)
 
     if exam_code:
         query = query.filter(Exam.exam_code == exam_code)
     if year:
         query = query.filter(ExamRound.year == year)
+    if round:
+        query = query.filter(ExamRound.round == round)
+    if session:
+        query = query.filter(RoundSubject.session == session)
     if subject:
         query = query.filter(Subject.subject_code == subject)
 
-    
     if mode == "RAN":
         query = query.order_by(func.random())
     else:
-        query = query.order_by(Question.question_no.asc()).filter(Question.question_no == question_no)
+        query = query.filter(Question.question_no == question_no).order_by(Question.question_no)
 
     question = query.first()
     if not question:
@@ -118,7 +124,6 @@ def get_random_question(
         ],
         "answer": answer_number
     }
-
 
 @router.post("/admin/save-questions")
 def save_questions(payload: UploadRequest, db: Session = Depends(get_db)):
@@ -194,7 +199,6 @@ def save_questions(payload: UploadRequest, db: Session = Depends(get_db)):
 class ExamInfoResponse(BaseModel):
     exam_code: str
     exam_name: str
-
 
 @router.get("/exams/info", response_model=ExamInfoResponse)
 def get_exam_info(exam_code: str, db: Session = Depends(get_db)):
