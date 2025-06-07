@@ -22,8 +22,14 @@ def upload_answers(payload: AnswerUploadRequest, db: Session = Depends(get_db)):
     if not exam_round:
         raise HTTPException(status_code=404, detail="해당 시험의 회차 정보를 찾을 수 없습니다.")
 
-    # 3. exam_round_id에 해당하는 round_subject 목록 조회
-    round_subjects = db.query(RoundSubject).filter_by(exam_round_id=exam_round.id).all()
+    # 3. exam_round_id + session 에 해당하는 round_subject 목록 조회
+    round_subjects = db.query(RoundSubject).filter_by(
+        exam_round_id=exam_round.id,
+        session=payload.session  # ← 교시 추가 조건
+    ).all()
+    if not round_subjects:
+        raise HTTPException(status_code=404, detail="해당 교시에 대한 과목이 없습니다.")
+
     round_subject_ids = [rs.id for rs in round_subjects]
 
     # 4. 문제번호 기준으로 정답 저장
@@ -45,3 +51,4 @@ def upload_answers(payload: AnswerUploadRequest, db: Session = Depends(get_db)):
 
     db.commit()
     return {"message": "정답이 성공적으로 저장되었습니다."}
+

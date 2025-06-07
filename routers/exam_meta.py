@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy.sql import func
-from sqlalchemy import String
+from sqlalchemy.sql import func, select
 from database import get_db
 from models.exam_model import Exam, ExamRound, RoundSubject, Subject, Question
 
@@ -25,37 +24,40 @@ def get_exam_meta_map(db: Session = Depends(get_db)):
             if round_str not in meta[year_str]:
                 meta[year_str][round_str] = {}
 
-            # round_subjects with joined subject and start_no
+            # ✅ 먼저 RoundSubject + Subject 가져오기
             round_subjects = (
                 db.query(
-                    RoundSubject,
+                    RoundSubject.id,
+                    RoundSubject.session,
                     Subject.subject_code,
-                    Subject.subject_name,
-                    func.min(Question.question_no).label("start_no")
+                    Subject.subject_name
                 )
                 .join(Subject, Subject.id == RoundSubject.subject_id)
-                .join(Question, Question.round_subject_id == RoundSubject.id)
                 .filter(RoundSubject.exam_round_id == round.id)
-                .group_by(RoundSubject.id, Subject.subject_code, Subject.subject_name, RoundSubject.session)
                 .all()
             )
 
-            for rs, subject_code, subject_name, start_no in round_subjects:
-                session_str = str(rs.session)
+            for rs_id, session, subject_code, subject_name in round_subjects:
+                session_str = str(session)
                 if session_str not in meta[year_str][round_str]:
-                    meta[year_str][round_str][session_str] = []
+                    meta[year_str][round_str][session_str] = {}
 
-                meta[year_str][round_str][session_str].append({
-                    "subject_code": subject_code,
-                    "subject_name": subject_name,
-                    "start_no": start_no
-                })
+                # ✅ optional start_no (있으면 포함)
+                start_no = db.query(func.min(Question.question_no)).filter(
+                    Question.round_subject_id == rs_id
+                ).scalar()
+
+                entry = {
+                    "subject_name": subject_name
+                }
+                if start_no is not None:
+                    entry["start_no"] = start_no
+
+                meta[year_str][round_str][session_str][subject_code] = entry
 
         exam_meta_map[exam.exam_code] = {
             "exam_name": exam.exam_name,
             "meta": meta
         }
 
-        print(f"exam_meta_map:{exam_meta_map}")
-
-    return { "exam_meta_map": exam_meta_map }
+    return {"exam_meta_map": exam_meta_map}

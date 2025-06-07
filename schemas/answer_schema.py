@@ -10,4 +10,5 @@ class AnswerUploadRequest(BaseModel):
     exam_code: str
     year: int
     round: int
+    session: int
     answers: List[SingleAnswer]
