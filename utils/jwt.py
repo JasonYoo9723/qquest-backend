@@ -5,7 +5,7 @@ from jose import jwt, JWTError
 
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "default_secret")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24시간
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 24시간
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
