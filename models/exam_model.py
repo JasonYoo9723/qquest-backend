@@ -3,6 +3,8 @@ from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
+from typing import Optional
+from sqlalchemy.dialects.postgresql import UUID
 
 # ✅ 1. 자격증 마스터 테이블
 class Exam(Base):
@@ -101,3 +103,35 @@ class WrongNote(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     question = relationship("Question")
+
+class ExamResult(Base):
+    __tablename__ = "t_exam_results"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False)
+
+    exam_code = Column(String, ForeignKey("t_exams.exam_code"), nullable=False)
+    year = Column(Integer, nullable=True)
+    round = Column(Integer, nullable=True)
+    session = Column(Integer, nullable=True)
+
+    subject = Column(String, ForeignKey("t_subjects.subject_code"), nullable=True)
+
+    total_count = Column(Integer, nullable=False)
+    correct_count = Column(Integer, nullable=False)
+    wrong_count = Column(Integer, nullable=False)
+    duration_seconds = Column(Integer, nullable=False)
+    taken_at = Column(DateTime, default=datetime.utcnow)
+    
+    # ✅ 자격증 및 과목 이름 참조용 관계
+    exam = relationship("Exam", lazy="joined")  # t_exams 테이블
+    subject_obj = relationship("Subject", lazy="joined")  # t_subjects 테이블
+    
+
+class ExamWrongQuestion(Base):
+    __tablename__ = "t_exam_wrong_questions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    result_id = Column(Integer, ForeignKey("t_exam_results.id", ondelete="CASCADE"), nullable=False)
+    question_id = Column(Integer, nullable=False)
+    chosen_choice = Column(Integer, nullable=False)

@@ -2,11 +2,15 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import func
 from database import get_db
-from models.exam_model import Exam, ExamRound, RoundSubject, Subject, Question, Choice, Answer
-from schemas.question_schema import UploadRequest
-from schemas.question_schema import SubjectResponse
+from models.exam_model import Exam, ExamRound, RoundSubject, Subject, Question, Choice, Answer, ExamResult, ExamWrongQuestion
+from schemas.question_schema import UploadRequest, SubjectResponse, StartExamRequest, ExamFilterRequest, ExamResultOut, ExamResultCreate, ExamWrongQuestionDetailed
+
 from typing import List
 from pydantic import BaseModel
+from typing import Optional
+
+from dependencies.auth import get_current_user
+from models.user_model import User
 
 router = APIRouter()
 
@@ -73,27 +77,30 @@ def get_exam_metadata(
 
 @router.get("/learn/random-question")
 def get_random_question(
-
-    exam_code: str = "",
-    year: int = 0,
-    round: int = 0,
-    session: int = 0,
-    subject: str = "",
+    exam_code: str,
+    year: Optional[int] = None,
+    round: Optional[int] = None,
+    session: Optional[int] = None,
+    subject: Optional[str] = None,
     mode: str = "RAN",
     question_no: int = 1,
     db: Session = Depends(get_db)
 ):
-    query = db.query(Question).join(RoundSubject).join(ExamRound).join(Exam).join(Subject)
+    query = db.query(Question)\
+        .join(RoundSubject)\
+        .join(ExamRound)\
+        .join(Exam)\
+        .join(Subject)
 
-    if exam_code:
-        query = query.filter(Exam.exam_code == exam_code)
-    if year:
+    # 필터 조건: 전체 선택 시(None), 해당 조건 생략
+    query = query.filter(Exam.exam_code == exam_code)
+    if year is not None:
         query = query.filter(ExamRound.year == year)
-    if round:
+    if round is not None:
         query = query.filter(ExamRound.round == round)
-    if session:
+    if session is not None:
         query = query.filter(RoundSubject.session == session)
-    if subject:
+    if subject is not None:
         query = query.filter(Subject.subject_code == subject)
 
     if mode == "RAN":
@@ -206,3 +213,221 @@ def get_exam_info(exam_code: str, db: Session = Depends(get_db)):
     if not exam:
         raise HTTPException(status_code=404, detail="해당 시험 코드가 존재하지 않습니다.")
     return ExamInfoResponse(exam_code=exam.exam_code, exam_name=exam.exam_name)
+
+@router.post("/exam/start")
+def start_exam(
+    req: StartExamRequest,
+    db: Session = Depends(get_db)
+):
+    query = (
+        db.query(Question, Exam, Subject, ExamRound)
+        .join(RoundSubject, Question.round_subject_id == RoundSubject.id)
+        .join(ExamRound, RoundSubject.exam_round_id == ExamRound.id)
+        .join(Exam, ExamRound.exam_id == Exam.id)
+        .join(Subject, RoundSubject.subject_id == Subject.id)
+    )
+
+    if req.exam_code:
+        query = query.filter(Exam.exam_code == req.exam_code)
+    if req.year:
+        query = query.filter(ExamRound.year == req.year)
+    if req.round:
+        query = query.filter(ExamRound.round == req.round)
+    if req.session:
+        query = query.filter(RoundSubject.session == req.session)
+    if req.subject:
+        query = query.filter(Subject.subject_code == req.subject)
+
+    rows = query.order_by(func.random()).limit(req.count).all()
+
+    results = []
+    for q, exam, subject, exam_round in rows:
+        results.append({
+            "id": q.id,
+            "question_no": q.question_no,
+            "question_text": q.question_text,
+            "choices": [
+                {
+                    "number": c.choice_number,
+                    "content": c.choice_content
+                } for c in sorted(q.choices, key=lambda x: x.choice_number)
+            ],
+            "exam_name": exam.exam_name,
+            "subject_name": subject.subject_name,
+            "year": exam_round.year,
+            "round": exam_round.round,
+            "answer": q.answer.choice_number if q.answer else None
+        })
+
+    return results
+
+
+@router.post("/exam/count")
+def count_questions(
+    req: ExamFilterRequest,
+    db: Session = Depends(get_db)
+):
+    query = db.query(Question).join(RoundSubject).join(ExamRound).join(Exam).join(Subject)
+
+    if req.exam_code:
+        query = query.filter(Exam.exam_code == req.exam_code)
+    if req.year:
+        query = query.filter(ExamRound.year == req.year)
+    if req.round:
+        query = query.filter(ExamRound.round == req.round)
+    if req.session:
+        query = query.filter(RoundSubject.session == req.session)
+    if req.subject:
+        query = query.filter(Subject.subject_code == req.subject)
+
+    count = query.count()
+    return {"count": count}
+
+@router.get("/exam/result/{result_id}", response_model=ExamResultOut)
+def get_exam_result(
+    result_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    result = db.query(ExamResult).filter(
+        ExamResult.id == result_id,
+        ExamResult.user_id == current_user.id
+    ).first()
+
+    if not result:
+        raise HTTPException(status_code=404, detail="시험 결과를 찾을 수 없습니다.")
+
+    # 오답 상세 조회
+    wrongs = (
+        db.query(ExamWrongQuestion)
+        .filter(ExamWrongQuestion.result_id == result.id)
+        .all()
+    )
+
+    wrong_questions_detailed = []
+
+    for w in wrongs:
+        question = db.query(Question).filter(Question.id == w.question_id).first()
+        choices = (
+            db.query(Choice)
+            .filter(Choice.question_id == question.id)
+            .order_by(Choice.choice_number)
+            .all()
+        )
+
+        wrong_questions_detailed.append({
+            "question_id": question.id,
+            "question_no": question.question_no,
+            "question_text": question.question_text,
+            "choices": [c.choice_content for c in choices],
+            "chosen_choice": w.chosen_choice,
+            "correct_choice": question.answer.choice_number if question.answer else None
+        })
+
+    return {
+        "id": result.id,
+        "exam_code": result.exam_code,
+        "exam_name": result.exam.exam_name if result.exam else result.exam_code,
+        "subject": result.subject,
+        "subject_name": result.subject_obj.subject_name if result.subject_obj else result.subject,
+        "year": result.year,
+        "round": result.round,
+        "session": result.session,
+        "total_count": result.total_count,
+        "correct_count": result.correct_count,
+        "wrong_count": result.wrong_count,
+        "duration_seconds": result.duration_seconds,
+        "taken_at": result.taken_at,
+        "wrong_questions": wrong_questions_detailed
+    }
+
+
+@router.post("/exam/finish", response_model=ExamResultOut)
+def finish_exam(
+    data: ExamResultCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    result = ExamResult(
+        user_id=current_user.id,
+        exam_code=data.exam_code,
+        year=data.year,
+        round=data.round,
+        session=data.session,
+        subject=data.subject,
+        total_count=data.total_count,
+        correct_count=data.correct_count,
+        wrong_count=data.wrong_count,
+        duration_seconds=data.duration_seconds
+    )
+    db.add(result)
+    db.commit()
+    db.refresh(result)
+
+    for wq in data.wrong_questions:
+        wrong = ExamWrongQuestion(
+            result_id=result.id,
+            question_id=wq.question_id,
+            chosen_choice=wq.chosen_choice
+        )
+        db.add(wrong)
+    db.commit()
+
+    # 오답 상세 데이터 조회
+    wrongs = db.query(ExamWrongQuestion).filter_by(result_id=result.id).all()
+    wrong_questions_detailed = []
+
+    for w in wrongs:
+        question = db.query(Question).filter(Question.id == w.question_id).first()
+        choices = db.query(Choice).filter(Choice.question_id == w.question_id).order_by(Choice.choice_number).all()
+        answer_row = db.query(Answer).filter_by(question_id=question.id).first()
+        correct_choice = answer_row.choice_number if answer_row else None
+
+        wrong_questions_detailed.append(ExamWrongQuestionDetailed(
+            question_id=question.id,
+            question_no=question.question_no,
+            question_text=question.question_text,
+            choices=[c.choice_content for c in choices],
+            chosen_choice=w.chosen_choice,
+            correct_choice=correct_choice
+        ))
+
+    return ExamResultOut(
+        id=result.id,
+        exam_code=result.exam_code,
+        exam_name=result.exam.exam_name if result.exam else result.exam_code,
+        subject=result.subject,
+        subject_name=result.subject_obj.subject_name if result.subject_obj else result.subject,
+        year=result.year,
+        round=result.round,
+        session=result.session,
+        total_count=result.total_count,
+        correct_count=result.correct_count,
+        wrong_count=result.wrong_count,
+        duration_seconds=result.duration_seconds,
+        taken_at=result.taken_at,
+        wrong_questions=wrong_questions_detailed
+    )
+
+@router.get("/exam/history")
+def get_exam_history(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    results = (
+        db.query(ExamResult)
+        .filter(ExamResult.user_id == user.id)
+        .order_by(ExamResult.taken_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": r.id,
+            "exam_name": r.exam.exam_name,
+            "year": r.year,
+            "round": r.round,
+            "session": r.session,
+            "total": r.total_count,
+            "correct": r.correct_count,
+            "wrong": r.wrong_count,
+            "created_at": r.taken_at.isoformat(),
+        }
+        for r in results
+    ]
