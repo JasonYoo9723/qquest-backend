@@ -2,6 +2,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, Boolean
 from datetime import datetime
 from database import Base
+from sqlalchemy.orm import relationship
 
 class User(Base):
     __tablename__ = "t_users"
@@ -14,3 +15,4 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     is_admin = Column(Boolean, default=False)
+    visit_logs = relationship("VisitLog", back_populates="user")

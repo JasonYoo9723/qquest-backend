@@ -1,5 +1,5 @@
 # dependencies/auth.py
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from google.oauth2 import id_token
 from google.auth.transport import requests
@@ -7,6 +7,9 @@ from sqlalchemy.orm import Session
 from models.user_model import User
 from db.session import get_db
 import os
+from typing import Optional
+from config import JWT_SECRET_KEY , JWT_ALGORITHM
+from jose import JWTError, jwt
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")  # 사용 안 해도 됨
 
@@ -57,3 +60,40 @@ async def get_current_user(
             detail="유효하지 않은 인증 토큰입니다.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+def get_optional_user(request: Request, db: Session = Depends(get_db)) -> Optional[User]:
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return None
+
+    token = auth_header.replace("Bearer ", "").strip()
+    try:
+        # Google ID 토큰 검증
+        idinfo = id_token.verify_oauth2_token(token, requests.Request(), GOOGLE_CLIENT_ID)
+
+        email = idinfo.get("email")
+        name = idinfo.get("name")
+        provider_id = idinfo.get("sub")
+        provider = "google"
+
+        if not email or not provider_id:
+            return None
+
+        user = db.query(User).filter_by(email=email).first()
+        if not user:
+            user = User(
+                email=email,
+                name=name,
+                provider=provider,
+                provider_id=provider_id,
+                is_active=True
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
+        return user
+
+    except Exception as e:
+        print(f"❌ get_optional_user 실패: {e}")
+        return None

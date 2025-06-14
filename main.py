@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 import sys
-from routers import question, auth, user, admin_answers, admin_modify, wrong_notes, exam_meta
+from routers import question, auth, user, admin_answers, admin_modify, wrong_notes, exam_meta, visit_log
 from database import engine, Base
 from dotenv import load_dotenv
 load_dotenv()
@@ -35,6 +35,7 @@ app.include_router(admin_answers.router, prefix="/api")
 app.include_router(admin_modify.router, prefix="/api", tags=["AdminModify"])
 app.include_router(wrong_notes.router, prefix="/api")
 app.include_router(exam_meta.router, prefix="/api")
+app.include_router(visit_log.router, prefix="/api")
 
 origins = os.getenv("ALLOWED_ORIGINS", "")
 allowed_origins = [origin.strip() for origin in origins.split(",") if origin.strip()]
