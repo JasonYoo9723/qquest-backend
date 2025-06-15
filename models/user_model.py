@@ -5,7 +5,7 @@ from database import Base
 from sqlalchemy.orm import relationship
 
 class User(Base):
-    __tablename__ = "t_users"
+    __tablename__ = "t_user"
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), unique=True, nullable=False)

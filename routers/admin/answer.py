@@ -1,12 +1,20 @@
+# routers\admin\answer.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
-from models.exam_model import Exam, ExamRound, RoundSubject, Question, Answer
+from models.exam_model import Exam
+from models.exam_round_model import ExamRound
+from models.round_subject_model import RoundSubject
+from models.question_model import Question
+from models.answer_model import Answer
 from schemas.answer_schema import AnswerUploadRequest
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/admin/answer",
+    tags=["Admin Answer"],
+)
 
-@router.post("/admin/upload-answers")
+@router.post("/upload")
 def upload_answers(payload: AnswerUploadRequest, db: Session = Depends(get_db)):
     # 1. 시험코드로 exam_id 조회
     exam = db.query(Exam).filter_by(exam_code=payload.exam_code).first()
@@ -25,7 +33,7 @@ def upload_answers(payload: AnswerUploadRequest, db: Session = Depends(get_db)):
     # 3. exam_round_id + session 에 해당하는 round_subject 목록 조회
     round_subjects = db.query(RoundSubject).filter_by(
         exam_round_id=exam_round.id,
-        session=payload.session  # ← 교시 추가 조건
+        session=payload.session
     ).all()
     if not round_subjects:
         raise HTTPException(status_code=404, detail="해당 교시에 대한 과목이 없습니다.")
@@ -51,4 +59,3 @@ def upload_answers(payload: AnswerUploadRequest, db: Session = Depends(get_db)):
 
     db.commit()
     return {"message": "정답이 성공적으로 저장되었습니다."}
-

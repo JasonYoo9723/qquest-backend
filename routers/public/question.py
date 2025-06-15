@@ -1,8 +1,17 @@
+# routers\public\question.py
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import func
 from database import get_db
-from models.exam_model import Exam, ExamRound, RoundSubject, Subject, Question, Choice, Answer, ExamResult, ExamWrongQuestion
+from models.exam_model import Exam
+from models.exam_round_model import ExamRound
+from models.round_subject_model import RoundSubject
+from models.subject_model import Subject
+from models.question_model import Question
+from models.choice_model import Choice
+from models.answer_model import Answer
+from models.exam_result_model import ExamResult
+from models.exam_wrong_question_model import ExamWrongQuestion
 from schemas.question_schema import UploadRequest, SubjectResponse, StartExamRequest, ExamFilterRequest, ExamResultOut, ExamResultCreate, ExamWrongQuestionDetailed
 
 from typing import List

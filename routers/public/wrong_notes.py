@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
-from models.exam_model import Question, Choice, Answer, WrongNote
-from models.exam_model import Subject, RoundSubject, ExamRound, Exam
+from models.question_model import Question
+from models.choice_model import Choice
+from models.answer_model import Answer
+from models.wrong_note_model import WrongNote
 from models.user_model import User
 from schemas.wrong_note_schema import WrongNoteBase, WrongNoteResponse
 from dependencies.auth import get_current_user

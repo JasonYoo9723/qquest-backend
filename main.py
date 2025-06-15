@@ -5,9 +5,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 import sys
-from routers import question, auth, user, admin_answers, admin_modify, wrong_notes, exam_meta, visit_log
+from routers.public import wrong_notes
 from database import engine, Base
 from dotenv import load_dotenv
+
+from routers.admin import answer, modify, visit_log, category, exam, subject, exam_round, round_subject
+from routers.auth import auth
+from routers.public import exam_meta, question
+from routers.user import user
+
 load_dotenv()
 
 # DB 모델 테이블 생성 (자동)
@@ -31,11 +37,16 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 app.include_router(question.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(user.router, prefix="/api")
-app.include_router(admin_answers.router, prefix="/api")
-app.include_router(admin_modify.router, prefix="/api", tags=["AdminModify"])
+app.include_router(answer.router, prefix="/api")
+app.include_router(modify.router, prefix="/api", tags=["AdminModify"])
 app.include_router(wrong_notes.router, prefix="/api")
 app.include_router(exam_meta.router, prefix="/api")
 app.include_router(visit_log.router, prefix="/api")
+app.include_router(category.router, prefix="/api")
+app.include_router(exam.router, prefix="/api")
+app.include_router(subject.router, prefix="/api")
+app.include_router(exam_round.router, prefix="/api")
+app.include_router(round_subject.router, prefix="/api")
 
 origins = os.getenv("ALLOWED_ORIGINS", "")
 allowed_origins = [origin.strip() for origin in origins.split(",") if origin.strip()]

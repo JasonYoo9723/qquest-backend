@@ -1,13 +1,24 @@
-# routers\admin_modify.py
+# routers\admin\admin_modify.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
-from models.exam_model import Exam, ExamRound, RoundSubject, Subject, Question, Choice, Answer
-from schemas.question_schema import UpdateQuestionRequest, QuestionUpdateItem
 
-router = APIRouter()
+from models.exam_model import Exam
+from models.exam_round_model import ExamRound
+from models.round_subject_model import RoundSubject
+from models.subject_model import Subject
+from models.question_model import Question
+from models.choice_model import Choice
+from models.answer_model import Answer
 
-@router.get("/admin/get-questions")
+from schemas.question_schema import UpdateQuestionRequest
+
+router = APIRouter(
+    prefix="/admin/modify",
+    tags=["Admin Modify"],
+)
+
+@router.get("/get-questions")
 def get_questions(exam_code: str, year: int, round: int, db: Session = Depends(get_db)):
     exam = db.query(Exam).filter(Exam.exam_code == exam_code).first()
     if not exam:
@@ -46,7 +57,8 @@ def get_questions(exam_code: str, year: int, round: int, db: Session = Depends(g
 
     return {"questions": result}
 
-@router.post("/admin/update-questions")
+
+@router.post("/update-questions")
 def update_questions(payload: UpdateQuestionRequest, db: Session = Depends(get_db)):
     try:
         for item in payload.questions:

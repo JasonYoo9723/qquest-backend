@@ -16,6 +16,8 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 
 @router.get("/users/me")
 def get_profile(current_user=Depends(get_current_user)):
+
+    print(f"current_user:{current_user.is_admin}")
     return {
         "id": current_user.id,
         "email": current_user.email,

@@ -3,13 +3,14 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime
-from database import Base  # 기존 Base 선언 import 필요
+from database import Base
 
+# 방문 로그
 class VisitLog(Base):
-    __tablename__ = "t_visit_logs"
+    __tablename__ = "t_visit_log"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("t_users.id"), nullable=True) 
+    user_id = Column(Integer, ForeignKey("t_user.id"), nullable=True)
     ip = Column(String(100), nullable=False)
     user_agent = Column(String(300), nullable=True)
     exam_code = Column(String(50), nullable=True)
